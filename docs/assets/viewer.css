@@ -51,17 +51,24 @@ body {
 }
 
 .panel-toggle {
+  appearance: none;
+  -webkit-appearance: none;
   flex: 0 0 auto;
-  width: 26px;
-  height: 26px;
+  /* Apple HIG recommends a minimum 44x44pt touch target; the previous 26px
+     box was easy to miss by tapping just outside its true hit area. */
+  width: 44px;
+  height: 44px;
+  margin: 0;
   padding: 0;
-  border-radius: 6px;
+  border-radius: 8px;
   border: 1px solid var(--border);
   background: #fff;
   color: var(--text);
   font-size: 12px;
   line-height: 1;
   cursor: pointer;
+  touch-action: manipulation;
+  -webkit-tap-highlight-color: transparent;
   display: flex;
   align-items: center;
   justify-content: center;
@@ -77,7 +84,7 @@ body {
   max-height: none;
 }
 
-.panel.collapsed > *:not(.panel-top):not(h1) {
+.panel.collapsed .panel-body {
   display: none;
 }
 
