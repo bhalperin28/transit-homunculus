@@ -50,12 +50,25 @@ var TH = (() => {
   function nominatimHeaders() {
     return isBrowser ? { Accept: "application/json" } : { "User-Agent": USER_AGENT, Accept: "application/json" };
   }
+  var MUNICIPALITY_ADDRESS_TYPES = /* @__PURE__ */ new Set([
+    "city",
+    "town",
+    "village",
+    "hamlet",
+    "municipality",
+    "borough",
+    "township",
+    "postcode"
+  ]);
+  function isMunicipalityResult(r) {
+    return !!r.addresstype && MUNICIPALITY_ADDRESS_TYPES.has(r.addresstype);
+  }
   async function searchCitySuggestions(query, limit = 6, bias) {
     if (query.trim().length < 2) return [];
     const url = new URL(NOMINATIM_URL);
     url.searchParams.set("q", query);
     url.searchParams.set("format", "jsonv2");
-    url.searchParams.set("limit", String(limit));
+    url.searchParams.set("limit", String(Math.min(limit * 3, 40)));
     url.searchParams.set("addressdetails", "0");
     if (bias) {
       const box = bboxAround({ lat: bias.lat, lon: bias.lon }, (bias.radiusKm ?? 400) * 1e3);
@@ -64,7 +77,8 @@ var TH = (() => {
     }
     const res = await fetch(url, { headers: nominatimHeaders() });
     if (!res.ok) return [];
-    return await res.json();
+    const results = await res.json();
+    return results.filter(isMunicipalityResult).slice(0, limit);
   }
   function nominatimResultToCityArea(r, slugSource, opts = {}) {
     const lat = parseFloat(r.lat);

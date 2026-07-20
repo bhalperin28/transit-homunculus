@@ -30,10 +30,37 @@ export interface SearchBias {
 }
 
 /**
- * Worldwide place search for autocomplete: returns raw Nominatim results
- * (cities, towns, postal codes, ...) for a free-text query. Isomorphic —
- * called directly from the browser for the search-box dropdown, and could
- * be used server-side too.
+ * Nominatim's `addresstype` for results that are themselves a municipality
+ * (or municipality-like settlement) rather than an address, street, or POI.
+ * Deliberately excludes broader regions too (county/state/country) and
+ * neighborhoods/localities (suburb/locality/quarter) that sit inside a city
+ * rather than being one. `postcode` is kept because postal-code search is
+ * an advertised way to find a city, not an address lookup.
+ *
+ * Nominatim's `featuretype` query param looks like it should do this
+ * server-side, but it's only honored for structured queries, not free-text
+ * `q=` search — verified empirically, so this filters the response instead.
+ */
+const MUNICIPALITY_ADDRESS_TYPES = new Set([
+  "city",
+  "town",
+  "village",
+  "hamlet",
+  "municipality",
+  "borough",
+  "township",
+  "postcode",
+]);
+
+function isMunicipalityResult(r: NominatimResult): boolean {
+  return !!r.addresstype && MUNICIPALITY_ADDRESS_TYPES.has(r.addresstype);
+}
+
+/**
+ * Worldwide place search for autocomplete: returns Nominatim results for
+ * municipalities (cities/towns/villages/postal codes) only — never
+ * addresses, streets, or landmarks. Isomorphic — called directly from the
+ * browser for the search-box dropdown, and could be used server-side too.
  *
  * `bias` nudges results toward a location (e.g. the visitor's) using
  * Nominatim's viewbox — this is a *soft* preference (`bounded=0`), so
@@ -49,7 +76,9 @@ export async function searchCitySuggestions(
   const url = new URL(NOMINATIM_URL);
   url.searchParams.set("q", query);
   url.searchParams.set("format", "jsonv2");
-  url.searchParams.set("limit", String(limit));
+  // Over-fetch: filtering out non-municipality results below shrinks the
+  // set, so ask Nominatim for more than `limit` to still end up with enough.
+  url.searchParams.set("limit", String(Math.min(limit * 3, 40)));
   url.searchParams.set("addressdetails", "0");
   if (bias) {
     const box = bboxAround({ lat: bias.lat, lon: bias.lon }, (bias.radiusKm ?? 400) * 1000);
@@ -59,7 +88,8 @@ export async function searchCitySuggestions(
 
   const res = await fetch(url, { headers: nominatimHeaders() });
   if (!res.ok) return [];
-  return (await res.json()) as NominatimResult[];
+  const results = (await res.json()) as NominatimResult[];
+  return results.filter(isMunicipalityResult).slice(0, limit);
 }
 
 export function nominatimResultToCityArea(
