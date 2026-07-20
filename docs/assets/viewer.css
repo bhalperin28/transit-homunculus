@@ -32,6 +32,7 @@ body {
   top: 16px;
   left: 16px;
   width: 340px;
+  max-width: calc(100vw - 32px);
   max-height: calc(100% - 32px);
   overflow-y: auto;
   background: var(--panel-bg);
@@ -40,6 +41,48 @@ body {
   padding: 16px 18px;
   box-shadow: 0 6px 24px rgba(0, 0, 0, 0.12);
   backdrop-filter: blur(6px);
+}
+
+.panel-top {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+}
+
+.panel-toggle {
+  flex: 0 0 auto;
+  width: 26px;
+  height: 26px;
+  padding: 0;
+  border-radius: 6px;
+  border: 1px solid var(--border);
+  background: #fff;
+  color: var(--text);
+  font-size: 12px;
+  line-height: 1;
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.panel-toggle-icon {
+  display: inline-block;
+  transition: transform 0.15s;
+}
+
+/* Collapsed: keep the top row + title visible as a compact bar, hide the rest. */
+.panel.collapsed {
+  max-height: none;
+}
+
+.panel.collapsed > *:not(.panel-top):not(h1) {
+  display: none;
+}
+
+.panel.collapsed .panel-toggle-icon {
+  transform: rotate(180deg);
 }
 
 .panel h1 {
@@ -258,7 +301,8 @@ body {
     --muted: #9a968b;
     --border: #35332e;
   }
-  .mode-buttons button {
+  .mode-buttons button,
+  .panel-toggle {
     background: #232326;
     color: var(--text);
   }

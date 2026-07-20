@@ -257,3 +257,18 @@ if (!document.getElementById("live-root")) {
     showLoadError("Couldn't load this city's data: " + err.message);
   });
 }
+
+// The panel can take up most of a phone screen, so it needs a way to
+// collapse down to just its title bar. Wired independently of
+// renderCityDataset (rather than inside it) so it works immediately,
+// including on the live page's progress screen before generation finishes.
+(function setupPanelToggle() {
+  const panel = document.querySelector(".panel");
+  const toggle = document.getElementById("panel-toggle");
+  if (!panel || !toggle) return;
+  toggle.addEventListener("click", () => {
+    const collapsed = panel.classList.toggle("collapsed");
+    toggle.setAttribute("aria-expanded", String(!collapsed));
+    toggle.setAttribute("aria-label", collapsed ? "Expand panel" : "Collapse panel");
+  });
+})();

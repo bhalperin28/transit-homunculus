@@ -12,7 +12,12 @@
 <div id="live-root"></div>
 <div id="map"></div>
 <div class="panel">
-  <a class="home-link" href="../index.html">&larr; All cities</a>
+  <div class="panel-top">
+    <a class="home-link" href="../index.html">&larr; All cities</a>
+    <button type="button" id="panel-toggle" class="panel-toggle" aria-expanded="true" aria-label="Collapse panel">
+      <span class="panel-toggle-icon">&#9662;</span>
+    </button>
+  </div>
   <h1 id="city-name">Generating…</h1>
   <p class="subtitle">A time-space cartogram: streets redrawn so that distance reflects travel time, not physical geography.
     <span id="generated-at-wrap" style="display:none"><span id="anchor-count"></span> sample points, generated <span id="generated-at"></span>.</span>
