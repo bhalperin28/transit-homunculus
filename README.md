@@ -31,7 +31,10 @@ GitHub Pages is static — there's no backend to run a pipeline on. So the *enti
 1. Typing in the search box calls Nominatim's search API directly from the browser
    (`docs/assets/search.js` + `TH.searchCitySuggestions`, both CORS-enabled, no key needed) for
    autocomplete suggestions.
-2. Picking a suggestion hands it to `docs/live/index.html`, which spins up a Web Worker
+2. Picking a suggestion navigates to `docs/live/index.html?name=...&lat=...&lon=...&bbox=...` —
+   the city is encoded right into the URL, so that URL is itself a permalink for this city:
+   shareable, bookmarkable, and reload-safe, rather than depending on state left behind by the
+   click that got you there. That page spins up a Web Worker
    (`docs/assets/vendor/generate-worker.js`) running the same pipeline code as the CLI, fetching
    roads/transit/water from Overpass and computing the travel-time matrices and MDS embedding off
    the main thread so the page stays responsive. A progress panel shows each stage as it runs —
@@ -39,12 +42,13 @@ GitHub Pages is static — there's no backend to run a pipeline on. So the *enti
 3. The result renders with the same `renderCityDataset()` viewer code used by the pre-generated
    static pages.
 
-Nothing computed this way is saved anywhere — it's regenerated fresh each time someone searches
-for it (a browser-side in-memory cache avoids redundant Overpass calls within one run, nothing
-more). The two pre-generated demo cities in `docs/` were built with the Node CLI (below) and
-committed as permanent, instant-loading pages; anything else you search for is generated on the
-spot. If a search result is already one of the committed pages, the search box detects that (by
-proximity, not name-matching) and jumps straight there instead of regenerating it.
+Nothing computed this way is saved anywhere — visiting a live permalink regenerates that city
+fresh every time (a browser-side in-memory cache avoids redundant Overpass calls within one run,
+nothing more). The two pre-generated demo cities in `docs/` were built with the Node CLI (below)
+and committed as permanent, instant-loading pages; anything else you search for is generated on
+the spot. If a search result is already one of the committed pages, the search box detects that
+(by proximity, not name-matching) and jumps straight to that page's own permalink instead of
+regenerating it.
 
 ### Pipeline stages
 

@@ -17,16 +17,36 @@ function logStage(stage, detail) {
   log.scrollTop = log.scrollHeight;
 }
 
+/**
+ * Reconstructs the picked city from the URL's own query params — this is
+ * what makes this page a permalink: sharing, bookmarking, or reloading the
+ * URL regenerates the same city, rather than depending on state (e.g.
+ * sessionStorage) left behind by the click that got you here.
+ */
+function parseCityFromUrl() {
+  const params = new URLSearchParams(location.search);
+  const lat = params.get("lat");
+  const lon = params.get("lon");
+  const bbox = params.get("bbox");
+  const name = params.get("name");
+  if (!lat || !lon || !bbox || !name) return null;
+  const boundingbox = bbox.split(",");
+  if (boundingbox.length !== 4) return null;
+  return {
+    result: { display_name: name, lat, lon, boundingbox },
+    query: params.get("q") || name,
+  };
+}
+
 async function runLive() {
-  const raw = sessionStorage.getItem("th:pendingCity");
-  if (!raw) {
+  const parsed = parseCityFromUrl();
+  if (!parsed) {
     document.getElementById("city-name").textContent = "No city selected";
     document.getElementById("progress-log").innerHTML =
       '<div class="progress-line">Go back and search for a city to generate.</div>';
     return;
   }
-  sessionStorage.removeItem("th:pendingCity");
-  const { result, query } = JSON.parse(raw);
+  const { result, query } = parsed;
   const city = TH.nominatimResultToCityArea(result, query);
 
   document.getElementById("city-name").textContent = city.name;

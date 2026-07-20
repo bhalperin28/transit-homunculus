@@ -111,8 +111,17 @@ function setupSearch() {
       location.href = `./${near.slug}/`;
       return;
     }
-    sessionStorage.setItem("th:pendingCity", JSON.stringify({ result: r, query: input.value }));
-    location.href = "./live/index.html";
+    // Encode the city right into the URL (rather than sessionStorage) so the
+    // live-generation page is itself a permalink: shareable, bookmarkable,
+    // and reload-safe, not just reachable by clicking through from here.
+    const params = new URLSearchParams({
+      q: input.value,
+      name: r.display_name,
+      lat: r.lat,
+      lon: r.lon,
+      bbox: r.boundingbox.join(","),
+    });
+    location.href = `./live/index.html?${params.toString()}`;
   }
 
   input.addEventListener("input", () => {
