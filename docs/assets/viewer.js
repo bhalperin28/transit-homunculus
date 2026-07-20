@@ -30,11 +30,12 @@ function formatDuration(seconds) {
   return `${h}h ${m}m`;
 }
 
-async function main() {
-  const dataUrl = new URLSearchParams(location.search).get("data") || "./data.json";
-  const res = await fetch(dataUrl);
-  const dataset = await res.json();
-
+/**
+ * Renders a generated city dataset into the page's #map + .panel controls.
+ * Shared by the pre-generated static city pages (which fetch data.json) and
+ * the live in-browser generator page (which computes the dataset itself).
+ */
+function renderCityDataset(dataset) {
   const projection = makeProjection({ lat: dataset.city.lat, lon: dataset.city.lon });
   const anchors = dataset.anchors;
   const modesByName = Object.fromEntries(dataset.modes.map((m) => [m.mode, m]));
@@ -152,8 +153,6 @@ async function main() {
     modeResult.sampleTrips.forEach((trip) => {
       const li = document.createElement("li");
       li.className = trip.id === state.selectedTrip ? "active" : "";
-      const fromName = `#${trip.fromAnchor}`;
-      const toName = `#${trip.toAnchor}`;
       li.innerHTML = `<div class="trip-label">${trip.label}</div>
         <div class="trip-times">fastest ${formatDuration(trip.fastestSeconds)} · shortest ${formatDuration(
         trip.shortestSeconds
@@ -197,6 +196,7 @@ async function main() {
 
   // --- controls ---
   const modeButtonsEl = document.getElementById("mode-buttons");
+  modeButtonsEl.innerHTML = "";
   Object.keys(MODE_LABELS).forEach((mode) => {
     const btn = document.createElement("button");
     btn.textContent = MODE_LABELS[mode];
@@ -214,6 +214,7 @@ async function main() {
   });
 
   const slider = document.getElementById("slider");
+  slider.value = "0";
   slider.addEventListener("input", (e) => {
     state.t = parseFloat(e.target.value);
     document.getElementById("slider-value").textContent = `${Math.round(state.t * 100)}%`;
@@ -221,19 +222,38 @@ async function main() {
   });
 
   const xrayToggle = document.getElementById("xray-toggle");
+  xrayToggle.checked = false;
   xrayToggle.addEventListener("change", (e) => {
     state.xray = e.target.checked;
     render();
   });
+
+  return map;
 }
 
-main().catch((err) => {
-  console.error(err);
+function showLoadError(message) {
   const panel = document.querySelector(".panel");
   if (panel) {
     const errEl = document.createElement("p");
     errEl.style.color = "#b3261e";
-    errEl.textContent = "Couldn't load this city's data: " + err.message;
+    errEl.textContent = message;
     panel.appendChild(errEl);
   }
-});
+}
+
+async function main() {
+  const dataUrl = new URLSearchParams(location.search).get("data") || "./data.json";
+  const res = await fetch(dataUrl);
+  const dataset = await res.json();
+  renderCityDataset(dataset);
+}
+
+// Only auto-run on the static per-city pages, which have no #live-root
+// element; the live-generation page renders explicitly once its dataset is
+// ready (see live.js).
+if (!document.getElementById("live-root")) {
+  main().catch((err) => {
+    console.error(err);
+    showLoadError("Couldn't load this city's data: " + err.message);
+  });
+}

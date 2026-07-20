@@ -3,8 +3,9 @@ import { slugify } from "./geo.js";
 
 const NOMINATIM_URL = "https://nominatim.openstreetmap.org/search";
 const USER_AGENT = "transit-homunculus/1.0 (city travel-time cartogram generator)";
+const isBrowser = typeof window !== "undefined";
 
-interface NominatimResult {
+export interface NominatimResult {
   display_name: string;
   lat: string;
   lon: string;
@@ -12,6 +13,52 @@ interface NominatimResult {
   importance: number;
   type: string;
   class: string;
+  addresstype?: string;
+}
+
+function nominatimHeaders(): HeadersInit {
+  // Browsers forbid overriding User-Agent; the default browser UA + Referer
+  // satisfies Nominatim's usage policy for normal client-side use.
+  return isBrowser ? { Accept: "application/json" } : { "User-Agent": USER_AGENT, Accept: "application/json" };
+}
+
+/**
+ * Worldwide place search for autocomplete: returns raw Nominatim results
+ * (cities, towns, postal codes, ...) for a free-text query. Isomorphic —
+ * called directly from the browser for the search-box dropdown, and could
+ * be used server-side too.
+ */
+export async function searchCitySuggestions(query: string, limit = 6): Promise<NominatimResult[]> {
+  if (query.trim().length < 2) return [];
+  const url = new URL(NOMINATIM_URL);
+  url.searchParams.set("q", query);
+  url.searchParams.set("format", "jsonv2");
+  url.searchParams.set("limit", String(limit));
+  url.searchParams.set("addressdetails", "0");
+
+  const res = await fetch(url, { headers: nominatimHeaders() });
+  if (!res.ok) return [];
+  return (await res.json()) as NominatimResult[];
+}
+
+export function nominatimResultToCityArea(
+  r: NominatimResult,
+  /** The text used to look this result up — the slug is derived from this
+   * (not the resolved display name) so re-running the same query, or the
+   * same autocomplete pick, always lands on the same city directory. */
+  slugSource: string,
+  opts: { radiusMeters?: number; maxRadiusMeters?: number } = {}
+): CityArea {
+  const lat = parseFloat(r.lat);
+  const lon = parseFloat(r.lon);
+  const [south, north, west, east] = r.boundingbox.map(parseFloat);
+
+  const maxRadius = opts.maxRadiusMeters ?? 9000;
+  let radiusMeters = opts.radiusMeters ?? boundingBoxRadiusMeters(south, north, west, east, lat);
+  radiusMeters = Math.min(Math.max(radiusMeters, 2000), maxRadius);
+
+  const name = r.display_name.split(",").slice(0, 2).join(",").trim() || r.display_name;
+  return { name, slug: slugify(slugSource), lat, lon, radiusMeters };
 }
 
 /**
@@ -29,7 +76,7 @@ export async function geocodeCity(
   url.searchParams.set("limit", "1");
   url.searchParams.set("addressdetails", "0");
 
-  const res = await fetch(url, { headers: { "User-Agent": USER_AGENT, Accept: "*/*" } });
+  const res = await fetch(url, { headers: nominatimHeaders() });
   if (!res.ok) {
     throw new Error(`Nominatim geocoding failed for "${query}": HTTP ${res.status}`);
   }
@@ -37,22 +84,7 @@ export async function geocodeCity(
   if (results.length === 0) {
     throw new Error(`No geocoding result found for "${query}"`);
   }
-  const r = results[0];
-  const lat = parseFloat(r.lat);
-  const lon = parseFloat(r.lon);
-  const [south, north, west, east] = r.boundingbox.map(parseFloat);
-
-  const maxRadius = opts.maxRadiusMeters ?? 9000;
-  let radiusMeters = opts.radiusMeters ?? boundingBoxRadiusMeters(south, north, west, east, lat);
-  radiusMeters = Math.min(Math.max(radiusMeters, 2000), maxRadius);
-
-  return {
-    name: r.display_name.split(",").slice(0, 2).join(",").trim() || query,
-    slug: slugify(query),
-    lat,
-    lon,
-    radiusMeters,
-  };
+  return nominatimResultToCityArea(results[0], query, opts);
 }
 
 function boundingBoxRadiusMeters(

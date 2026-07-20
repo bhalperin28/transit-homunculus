@@ -1,6 +1,6 @@
 import type { Anchor, CityArea, LatLon } from "./types.js";
 import { makeProjection, pointInPolygon, bboxAround } from "./geo.js";
-import { overpassQuery } from "./overpass.js";
+import type { OverpassQueryFn } from "./overpass-fetch.js";
 
 /**
  * Generates a hexagonally-packed set of anchor points covering a circular
@@ -34,7 +34,11 @@ export function generateHexGrid(city: CityArea, targetCount = 160): Anchor[] {
 }
 
 /** Fetches water polygons (lakes, bays, rivers) and drops anchors that fall inside them. */
-export async function removeWaterAnchors(city: CityArea, anchors: Anchor[]): Promise<Anchor[]> {
+export async function removeWaterAnchors(
+  city: CityArea,
+  anchors: Anchor[],
+  queryFn: OverpassQueryFn
+): Promise<Anchor[]> {
   const bbox = bboxAround({ lat: city.lat, lon: city.lon }, city.radiusMeters * 1.05);
   const query = `
     [out:json][timeout:90];
@@ -50,7 +54,7 @@ export async function removeWaterAnchors(city: CityArea, anchors: Anchor[]): Pro
 
   let data;
   try {
-    data = await overpassQuery(query, `water-${city.slug}`);
+    data = await queryFn(query, `water-${city.slug}`);
   } catch {
     // If the water query fails, keep all anchors rather than aborting the pipeline.
     return anchors;

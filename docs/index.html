@@ -4,7 +4,7 @@
 <meta charset="utf-8" />
 <meta name="viewport" content="width=device-width, initial-scale=1" />
 <link rel="icon" href="data:," />
-<title>Time-Space Cartogram — pick a city</title>
+<title>Time-Space Cartogram — search any city</title>
 <style>
   :root {
     color-scheme: light dark;
@@ -35,12 +35,70 @@
   .wrap { max-width: 760px; margin: 0 auto; }
   h1 { font-size: 30px; margin-bottom: 6px; }
   p.lead { color: var(--muted); font-size: 15px; line-height: 1.6; margin-top: 0; }
+
+  .search-wrap { position: relative; margin: 28px 0 8px; }
+  .search-row { display: flex; gap: 8px; }
+  #city-search {
+    flex: 1;
+    font-family: inherit;
+    font-size: 16px;
+    padding: 12px 14px;
+    border-radius: 8px;
+    border: 1.5px solid var(--border);
+    background: var(--card-bg);
+    color: var(--text);
+  }
+  #city-search:focus { outline: none; border-color: var(--accent); }
+  #search-status {
+    font-size: 12.5px;
+    color: var(--muted);
+    margin-top: 6px;
+    min-height: 1.2em;
+  }
+  .suggestions {
+    position: absolute;
+    top: calc(100% + 4px);
+    left: 0;
+    right: 0;
+    background: var(--card-bg);
+    border: 1px solid var(--border);
+    border-radius: 8px;
+    box-shadow: 0 8px 24px rgba(0, 0, 0, 0.15);
+    max-height: 320px;
+    overflow-y: auto;
+    z-index: 10;
+    display: none;
+  }
+  .suggestions.open { display: block; }
+  .suggestion {
+    padding: 10px 14px;
+    cursor: pointer;
+    font-size: 14px;
+    border-bottom: 1px solid var(--border);
+  }
+  .suggestion:last-child { border-bottom: none; }
+  .suggestion:hover,
+  .suggestion.highlighted { background: var(--bg); }
+  .suggestion .badge {
+    display: inline-block;
+    font-size: 10px;
+    text-transform: uppercase;
+    letter-spacing: 0.04em;
+    color: var(--accent);
+    border: 1px solid var(--accent);
+    border-radius: 4px;
+    padding: 1px 5px;
+    margin-left: 8px;
+    vertical-align: middle;
+  }
+
   .cities {
     display: grid;
     grid-template-columns: repeat(auto-fill, minmax(220px, 1fr));
     gap: 12px;
-    margin: 28px 0;
+    margin: 24px 0;
   }
+  .cities-label { font-size: 12px; text-transform: uppercase; letter-spacing: 0.06em; color: var(--muted); margin: 32px 0 0; }
   .city-card {
     display: block;
     text-decoration: none;
@@ -76,48 +134,46 @@
 <div class="wrap">
   <h1>Time-space cartogram</h1>
   <p class="lead">
-    Streets redrawn so distance reflects travel time, not physical geography — for any city.
-    Pick a generated city below, or generate your own with the pipeline.
+    Streets redrawn so distance reflects travel time, not physical geography — for any city on
+    Earth. Search a city, town, or postal code below; it's generated live from OpenStreetMap
+    right in your browser.
   </p>
 
+  <div class="search-wrap">
+    <div class="search-row">
+      <input
+        id="city-search"
+        type="text"
+        placeholder="Search any city worldwide… (e.g. Lisbon, Portugal or 97401)"
+        autocomplete="off"
+        spellcheck="false"
+      />
+    </div>
+    <div id="search-status"></div>
+    <div class="suggestions" id="suggestions" role="listbox"></div>
+  </div>
+
+  <p class="cities-label">Already generated</p>
   <div class="cities" id="cities"></div>
-  <p id="empty" style="display:none">No cities generated yet — run the pipeline below.</p>
+  <p id="empty" style="display:none">No cities generated yet — search for one above.</p>
 
   <div class="howto">
-    <h2>Generate a new city</h2>
+    <h2>Prefer more control?</h2>
+    <p style="color: var(--muted); font-size: 13px; line-height: 1.6;">
+      The search box above runs the whole pipeline — road network, transit routes, travel-time
+      routing, and the 2D embedding — live in your browser via a Web Worker, using
+      <a href="https://nominatim.openstreetmap.org/">Nominatim</a> and
+      <a href="https://overpass-api.de/">Overpass</a>. For a larger anchor count, a custom
+      radius, or to save the result as a permanent page in this repo, use the CLI instead:
+    </p>
     <pre>npm install
 npm run pipeline -- --city "Portland, Oregon"</pre>
     <p style="color: var(--muted); font-size: 13px; line-height: 1.6;">
-      Geocodes the city with OpenStreetMap Nominatim, pulls its road network and transit
-      routes from Overpass, computes travel-time matrices for free-flow driving, rush-hour
-      driving (a modeled congestion profile), and transit, then embeds each into 2D with
-      stress-majorization MDS. Output lands in <code>docs/&lt;city-slug&gt;/</code> and this
-      page updates itself. See the <a href="https://github.com/bhalperin28/transit-homunculus">README</a>
-      for details and options (<code>--radius</code>, <code>--anchors</code>).
+      See the <a href="https://github.com/bhalperin28/transit-homunculus">README</a> for details.
     </p>
   </div>
 </div>
-<script>
-  fetch("./cities.json")
-    .then((r) => (r.ok ? r.json() : []))
-    .then((cities) => {
-      const container = document.getElementById("cities");
-      if (!cities.length) {
-        document.getElementById("empty").style.display = "block";
-        return;
-      }
-      for (const city of cities) {
-        const a = document.createElement("a");
-        a.className = "city-card";
-        a.href = `./${city.slug}/`;
-        a.innerHTML = `<div class="name">${city.name}</div>
-          <div class="meta">${city.anchorCount} points${city.transitAvailable ? " · transit" : ""}</div>`;
-        container.appendChild(a);
-      }
-    })
-    .catch(() => {
-      document.getElementById("empty").style.display = "block";
-    });
-</script>
+<script src="./assets/vendor/generate-lib.js"></script>
+<script src="./assets/search.js"></script>
 </body>
 </html>

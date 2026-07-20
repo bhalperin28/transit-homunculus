@@ -200,6 +200,52 @@ body {
   line-height: 1.5;
 }
 
+.progress-log {
+  max-height: 160px;
+  overflow-y: auto;
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  padding: 8px 10px;
+  font-size: 12px;
+  background: #fbfaf7;
+}
+
+.progress-line {
+  padding: 3px 0;
+  color: var(--muted);
+}
+
+.progress-line:last-child {
+  color: var(--text);
+  font-weight: 600;
+}
+
+.progress-note {
+  font-size: 11px;
+  color: var(--muted);
+  line-height: 1.5;
+  margin-top: 8px;
+}
+
+@keyframes th-spin {
+  to {
+    transform: rotate(360deg);
+  }
+}
+
+#progress-section .section-label::after {
+  content: "";
+  display: inline-block;
+  width: 9px;
+  height: 9px;
+  margin-left: 6px;
+  border: 1.5px solid var(--border);
+  border-top-color: var(--accent);
+  border-radius: 50%;
+  animation: th-spin 0.8s linear infinite;
+  vertical-align: middle;
+}
+
 .maplibregl-ctrl-attrib {
   font-size: 10px !important;
 }
@@ -219,5 +265,8 @@ body {
   .trip-list li:hover,
   .trip-list li.active {
     background: #2a231e;
+  }
+  .progress-log {
+    background: #1c1d20;
   }
 }

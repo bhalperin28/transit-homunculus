@@ -19,13 +19,38 @@ run for **any city on Earth** with no city-specific configuration and no paid AP
   city" — OSM route relations exist worldwide under one schema. Since OSM has no timetables, wait
   time is approximated as half the mode's typical headway.
 
-Live demo cities are in [`docs/`](./docs) — open `docs/index.html` to pick one, or generate your
-own (see below).
+**[Open the live site](https://bhalperin28.github.io/transit-homunculus/)** and search any city,
+town, or postal code worldwide — it's geocoded and generated live, entirely in your browser, no
+server involved. A few cities are also pre-generated and load instantly; search finds those first.
 
-## How it works
+## How the site works
 
-Six pipeline stages, run for a chosen city, produce a static JSON dataset that the viewer
-morphs between with a slider:
+GitHub Pages is static — there's no backend to run a pipeline on. So the *entire* pipeline
+(geocode → roads → transit → routing → MDS embedding) runs client-side in a Web Worker:
+
+1. Typing in the search box calls Nominatim's search API directly from the browser
+   (`docs/assets/search.js` + `TH.searchCitySuggestions`, both CORS-enabled, no key needed) for
+   autocomplete suggestions.
+2. Picking a suggestion hands it to `docs/live/index.html`, which spins up a Web Worker
+   (`docs/assets/vendor/generate-worker.js`) running the same pipeline code as the CLI, fetching
+   roads/transit/water from Overpass and computing the travel-time matrices and MDS embedding off
+   the main thread so the page stays responsive. A progress panel shows each stage as it runs —
+   this can take anywhere from ~10 seconds (a small town) to a couple of minutes (a large metro).
+3. The result renders with the same `renderCityDataset()` viewer code used by the pre-generated
+   static pages.
+
+Nothing computed this way is saved anywhere — it's regenerated fresh each time someone searches
+for it (a browser-side in-memory cache avoids redundant Overpass calls within one run, nothing
+more). The two pre-generated demo cities in `docs/` were built with the Node CLI (below) and
+committed as permanent, instant-loading pages; anything else you search for is generated on the
+spot. If a search result is already one of the committed pages, the search box detects that (by
+proximity, not name-matching) and jumps straight there instead of regenerating it.
+
+### Pipeline stages
+
+Both the in-browser worker and the Node CLI run the same six stages
+(`src/pipeline/orchestrate.ts`), producing a JSON dataset that the viewer morphs between with a
+slider:
 
 1. **`geocode.ts`** — resolve the city name to a center point and an analysis radius (from the
    place's own OSM bounding box, capped at 9km so the pipeline stays tractable for large metros).
@@ -47,9 +72,19 @@ morphs between with a slider:
 
 The viewer (`docs/assets/viewer.js`, MapLibre GL) interpolates each anchor between its real
 position and its time-embedded position as you drag the slider, and reprojects it into lat/lon
-for the map.
+for the map. `renderCityDataset()` is the shared entry point both the static per-city pages and
+the live-generation page render through.
 
-## Usage
+Overpass fetching is the one piece that differs by environment (`OverpassQueryFn`, injected into
+`hexgrid.ts`/`network.ts`/`transit.ts`): `src/pipeline/overpass.ts` disk-caches to `data/cache/`
+under Node, `src/pipeline/overpass-browser.ts` uses an in-memory cache in the browser. Everything
+else is the same code running in both places.
+
+## Generating a permanent page with the CLI
+
+Prefer more control — a larger anchor count, a custom radius, or a page that loads instantly
+without regenerating? The same pipeline also runs as a Node CLI that writes a permanent static
+page into `docs/`:
 
 ```sh
 npm install
@@ -65,11 +100,23 @@ Flags:
   `anchors × road graph size`, so larger cities or higher anchor counts take longer.
 
 Output goes to `docs/<city-slug>/` (data + a small HTML shell) and `docs/cities.json` is updated
-so the landing page picks it up automatically. Open `docs/index.html` in a browser, or
-`docs/<city-slug>/index.html` directly.
+so the landing page picks it up automatically (including for the live search's proximity match).
 
 Transit mode is included automatically when OSM has route relations mapped for the area; if not,
 the pipeline says so and the viewer just disables that mode button rather than failing.
+
+### Rebuilding the browser bundles
+
+If you change anything under `src/pipeline/` or `src/browser/`, rebuild the bundles GitHub Pages
+actually serves (esbuild, committed to `docs/assets/vendor/` since Pages has no build step):
+
+```sh
+npm run build:browser
+```
+
+This produces `generate-worker.js` (the Web Worker running the pipeline) and `generate-lib.js`
+(the main-thread `window.TH` API: `searchCitySuggestions`, `nominatimResultToCityArea`,
+`generateCityDataset`) — both dependency-free bundles with no Node built-ins.
 
 ## Known simplifications
 
@@ -81,3 +128,9 @@ the pipeline says so and the viewer just disables that mode button rather than f
   congestion profile.
 - **Anchor count and radius are capped** for pipeline runtime. A very large metro area will need
   a longer `--radius`/`--anchors` run, or a lower target if Overpass queries start timing out.
+- **The live in-browser flow uses a fixed, lighter anchor target** (130, vs. the CLI's default
+  160) to keep in-browser generation time reasonable on an average connection. Use the CLI for a
+  denser, permanent page.
+- **Live generations aren't persisted.** Searching for a city that isn't already a committed page
+  regenerates it from scratch every time (nothing is written back to the repo from the browser —
+  there's no server to write to). Committing it permanently requires running the CLI.

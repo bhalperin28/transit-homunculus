@@ -81,6 +81,8 @@ export async function writeCitySite(dataset: CityDataset): Promise<string> {
 export interface CityIndexEntry {
   name: string;
   slug: string;
+  lat: number;
+  lon: number;
   anchorCount: number;
   transitAvailable: boolean;
   generatedAt: string;

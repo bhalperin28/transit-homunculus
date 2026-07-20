@@ -1,6 +1,6 @@
 import type { Anchor, CityArea, GraphEdge, GraphNode, RoadGraph } from "./types.js";
 import { bboxAround, haversineMeters } from "./geo.js";
-import { overpassQuery } from "./overpass.js";
+import type { OverpassQueryFn } from "./overpass-fetch.js";
 
 /**
  * Builds a transit-mode routing graph directly from OpenStreetMap's public
@@ -58,7 +58,8 @@ interface Stop {
 
 export async function buildTransitGraph(
   city: CityArea,
-  anchors: Anchor[]
+  anchors: Anchor[],
+  queryFn: OverpassQueryFn
 ): Promise<{ graph: RoadGraph; transitAvailable: boolean }> {
   const bbox = bboxAround({ lat: city.lat, lon: city.lon }, city.radiusMeters * 1.1);
   const routeFilter = ROUTE_TYPES.join("|");
@@ -75,7 +76,7 @@ export async function buildTransitGraph(
 
   let data;
   try {
-    data = await overpassQuery(query, `transit-${city.slug}`);
+    data = await queryFn(query, `transit-${city.slug}`);
   } catch {
     return { graph: emptyGraphWithAnchors(anchors), transitAvailable: false };
   }

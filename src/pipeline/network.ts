@@ -1,6 +1,6 @@
 import type { CityArea, GraphEdge, GraphNode, RoadGraph } from "./types.js";
 import { bboxAround, haversineMeters } from "./geo.js";
-import { overpassQuery } from "./overpass.js";
+import type { OverpassQueryFn } from "./overpass-fetch.js";
 
 const DRIVABLE_HIGHWAYS = [
   "motorway",
@@ -69,7 +69,7 @@ function parseMaxspeedKmh(tag: string | undefined, highway: string): number {
   return fallback;
 }
 
-export async function fetchRoadGraph(city: CityArea): Promise<RoadGraph> {
+export async function fetchRoadGraph(city: CityArea, queryFn: OverpassQueryFn): Promise<RoadGraph> {
   const bbox = bboxAround({ lat: city.lat, lon: city.lon }, city.radiusMeters);
   const highwayFilter = DRIVABLE_HIGHWAYS.join("|");
   const query = `
@@ -83,7 +83,7 @@ export async function fetchRoadGraph(city: CityArea): Promise<RoadGraph> {
     out skel qt;
   `;
 
-  const data = await overpassQuery(query, `roads-${city.slug}`);
+  const data = await queryFn(query, `roads-${city.slug}`);
 
   const nodes = new Map<number, GraphNode>();
   const ways: { nodeIds: number[]; highway: string; maxspeed?: string; oneway?: string }[] = [];

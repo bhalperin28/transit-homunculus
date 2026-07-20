@@ -2,15 +2,19 @@
   {
     "name": "Eugene, Lane County",
     "slug": "eugene-oregon",
+    "lat": 44.0505054,
+    "lon": -123.0950506,
     "anchorCount": 161,
     "transitAvailable": true,
-    "generatedAt": "2026-07-20T07:19:03.568Z"
+    "generatedAt": "2026-07-20T07:41:42.332Z"
   },
   {
     "name": "Missoula, Missoula County",
     "slug": "missoula-montana",
+    "lat": 46.8701049,
+    "lon": -113.995267,
     "anchorCount": 83,
     "transitAvailable": false,
-    "generatedAt": "2026-07-20T07:17:30.925Z"
+    "generatedAt": "2026-07-20T07:41:13.507Z"
   }
 ]
