@@ -1,0 +1,123 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<link rel="icon" href="data:," />
+<title>Time-Space Cartogram — pick a city</title>
+<style>
+  :root {
+    color-scheme: light dark;
+    --bg: #f7f6f2;
+    --text: #1c1b19;
+    --muted: #6b675f;
+    --accent: #c8532a;
+    --border: #e2ded4;
+    --card-bg: #fff;
+  }
+  @media (prefers-color-scheme: dark) {
+    :root {
+      --bg: #17181a;
+      --text: #eeece6;
+      --muted: #9a968b;
+      --border: #35332e;
+      --card-bg: #1f2023;
+    }
+  }
+  * { box-sizing: border-box; }
+  body {
+    margin: 0;
+    background: var(--bg);
+    color: var(--text);
+    font-family: "Iowan Old Style", "Palatino Linotype", Georgia, serif;
+    padding: 48px 20px;
+  }
+  .wrap { max-width: 760px; margin: 0 auto; }
+  h1 { font-size: 30px; margin-bottom: 6px; }
+  p.lead { color: var(--muted); font-size: 15px; line-height: 1.6; margin-top: 0; }
+  .cities {
+    display: grid;
+    grid-template-columns: repeat(auto-fill, minmax(220px, 1fr));
+    gap: 12px;
+    margin: 28px 0;
+  }
+  .city-card {
+    display: block;
+    text-decoration: none;
+    color: var(--text);
+    background: var(--card-bg);
+    border: 1px solid var(--border);
+    border-radius: 10px;
+    padding: 14px 16px;
+    transition: border-color 0.15s, transform 0.1s;
+  }
+  .city-card:hover { border-color: var(--accent); transform: translateY(-1px); }
+  .city-card .name { font-weight: 600; font-size: 16px; }
+  .city-card .meta { font-size: 12px; color: var(--muted); margin-top: 4px; }
+  #empty { color: var(--muted); font-size: 14px; }
+  .howto {
+    margin-top: 36px;
+    padding-top: 24px;
+    border-top: 1px solid var(--border);
+  }
+  .howto h2 { font-size: 17px; }
+  .howto pre {
+    background: var(--card-bg);
+    border: 1px solid var(--border);
+    border-radius: 8px;
+    padding: 14px 16px;
+    overflow-x: auto;
+    font-size: 13px;
+  }
+  a { color: var(--accent); }
+</style>
+</head>
+<body>
+<div class="wrap">
+  <h1>Time-space cartogram</h1>
+  <p class="lead">
+    Streets redrawn so distance reflects travel time, not physical geography — for any city.
+    Pick a generated city below, or generate your own with the pipeline.
+  </p>
+
+  <div class="cities" id="cities"></div>
+  <p id="empty" style="display:none">No cities generated yet — run the pipeline below.</p>
+
+  <div class="howto">
+    <h2>Generate a new city</h2>
+    <pre>npm install
+npm run pipeline -- --city "Portland, Oregon"</pre>
+    <p style="color: var(--muted); font-size: 13px; line-height: 1.6;">
+      Geocodes the city with OpenStreetMap Nominatim, pulls its road network and transit
+      routes from Overpass, computes travel-time matrices for free-flow driving, rush-hour
+      driving (a modeled congestion profile), and transit, then embeds each into 2D with
+      stress-majorization MDS. Output lands in <code>docs/&lt;city-slug&gt;/</code> and this
+      page updates itself. See the <a href="https://github.com/bhalperin28/transit-homunculus">README</a>
+      for details and options (<code>--radius</code>, <code>--anchors</code>).
+    </p>
+  </div>
+</div>
+<script>
+  fetch("./cities.json")
+    .then((r) => (r.ok ? r.json() : []))
+    .then((cities) => {
+      const container = document.getElementById("cities");
+      if (!cities.length) {
+        document.getElementById("empty").style.display = "block";
+        return;
+      }
+      for (const city of cities) {
+        const a = document.createElement("a");
+        a.className = "city-card";
+        a.href = `./${city.slug}/`;
+        a.innerHTML = `<div class="name">${city.name}</div>
+          <div class="meta">${city.anchorCount} points${city.transitAvailable ? " · transit" : ""}</div>`;
+        container.appendChild(a);
+      }
+    })
+    .catch(() => {
+      document.getElementById("empty").style.display = "block";
+    });
+</script>
+</body>
+</html>
