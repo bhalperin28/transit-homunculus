@@ -59,6 +59,15 @@ export function computeDrivingMode(
   const matrix: number[][] = Array.from({ length: n }, () => new Array(n).fill(-1));
   const timeWeight = modeWeight[mode];
 
+  // Only the anchors that anchor a sample trip need their full Dijkstra
+  // result (dist/prev/prevEdge maps, each up to the size of the whole road
+  // graph) kept around afterward, for path reconstruction. Retaining every
+  // anchor's result for the whole function call — instead of just pulling
+  // the matrix row out of it and letting it be GC'd — is fine for a small
+  // test city, but multiplies into a real out-of-memory risk on a graph the
+  // size of a dense city's, especially in a memory-constrained mobile
+  // browser tab.
+  const neededFromIdxs = new Set(tripDefs.map((d) => d.fromIdx));
   const dijkstraByAnchor = new Map<number, ReturnType<typeof dijkstra>>();
 
   for (let i = 0; i < n; i++) {
@@ -67,7 +76,7 @@ export function computeDrivingMode(
     if (sourceNode < 0) continue;
     const targets = new Set(anchorNodeIds.filter((id) => id >= 0));
     const result = dijkstra(graph, sourceNode, timeWeight, targets);
-    dijkstraByAnchor.set(i, result);
+    if (neededFromIdxs.has(i)) dijkstraByAnchor.set(i, result);
     for (let j = 0; j < n; j++) {
       if (i === j || anchorNodeIds[j] < 0) continue;
       const d = result.dist.get(anchorNodeIds[j]);
@@ -119,6 +128,7 @@ export function computeTransitMode(
 ): ModeResult {
   const n = anchors.length;
   const matrix: number[][] = Array.from({ length: n }, () => new Array(n).fill(-1));
+  const neededFromIdxs = new Set(tripDefs.map((d) => d.fromIdx));
   const dijkstraByAnchor = new Map<number, ReturnType<typeof dijkstra>>();
   const targets = new Set(anchors.map((a) => anchorNodeId(a.id)));
 
@@ -126,7 +136,7 @@ export function computeTransitMode(
     matrix[i][i] = 0;
     const sourceNode = anchorNodeId(anchors[i].id);
     const result = dijkstra(graph, sourceNode, modeWeight.transit, targets);
-    dijkstraByAnchor.set(i, result);
+    if (neededFromIdxs.has(i)) dijkstraByAnchor.set(i, result);
     for (let j = 0; j < n; j++) {
       if (i === j) continue;
       const d = result.dist.get(anchorNodeId(anchors[j].id));

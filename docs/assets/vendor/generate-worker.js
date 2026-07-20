@@ -558,13 +558,29 @@
         addEdge(stop.id, aId, walkS, d, "walk");
       }
     }
+    const projection = makeProjection({ lat: city.lat, lon: city.lon });
+    const stopXY = stopList.map((s) => projection.toXY(s));
+    const cellOf = (i) => [Math.floor(stopXY[i].x / TRANSFER_WALK_RADIUS_M), Math.floor(stopXY[i].y / TRANSFER_WALK_RADIUS_M)];
+    const grid = /* @__PURE__ */ new Map();
     for (let i = 0; i < stopList.length; i++) {
-      for (let j = i + 1; j < stopList.length; j++) {
-        const d = haversineMeters(stopList[i], stopList[j]);
-        if (d > TRANSFER_WALK_RADIUS_M) continue;
-        const walkS = walkSeconds(d);
-        addEdge(stopList[i].id, stopList[j].id, walkS + TYPICAL_HEADWAY_S[stopList[j].bestMode] / 2, d, "walk");
-        addEdge(stopList[j].id, stopList[i].id, walkS + TYPICAL_HEADWAY_S[stopList[i].bestMode] / 2, d, "walk");
+      const [cx, cy] = cellOf(i);
+      const key = `${cx},${cy}`;
+      if (!grid.has(key)) grid.set(key, []);
+      grid.get(key).push(i);
+    }
+    for (let i = 0; i < stopList.length; i++) {
+      const [cx, cy] = cellOf(i);
+      for (let dx = -1; dx <= 1; dx++) {
+        for (let dy = -1; dy <= 1; dy++) {
+          for (const j of grid.get(`${cx + dx},${cy + dy}`) ?? []) {
+            if (j <= i) continue;
+            const d = haversineMeters(stopList[i], stopList[j]);
+            if (d > TRANSFER_WALK_RADIUS_M) continue;
+            const walkS = walkSeconds(d);
+            addEdge(stopList[i].id, stopList[j].id, walkS + TYPICAL_HEADWAY_S[stopList[j].bestMode] / 2, d, "walk");
+            addEdge(stopList[j].id, stopList[i].id, walkS + TYPICAL_HEADWAY_S[stopList[i].bestMode] / 2, d, "walk");
+          }
+        }
       }
     }
     for (let i = 0; i < anchors.length; i++) {
@@ -689,6 +705,7 @@
     const n = anchors.length;
     const matrix = Array.from({ length: n }, () => new Array(n).fill(-1));
     const timeWeight = modeWeight[mode];
+    const neededFromIdxs = new Set(tripDefs.map((d) => d.fromIdx));
     const dijkstraByAnchor = /* @__PURE__ */ new Map();
     for (let i = 0; i < n; i++) {
       const sourceNode = anchorNodeIds[i];
@@ -696,7 +713,7 @@
       if (sourceNode < 0) continue;
       const targets = new Set(anchorNodeIds.filter((id) => id >= 0));
       const result = dijkstra(graph, sourceNode, timeWeight, targets);
-      dijkstraByAnchor.set(i, result);
+      if (neededFromIdxs.has(i)) dijkstraByAnchor.set(i, result);
       for (let j = 0; j < n; j++) {
         if (i === j || anchorNodeIds[j] < 0) continue;
         const d = result.dist.get(anchorNodeIds[j]);
@@ -736,13 +753,14 @@
   function computeTransitMode(graph, anchors, tripDefs) {
     const n = anchors.length;
     const matrix = Array.from({ length: n }, () => new Array(n).fill(-1));
+    const neededFromIdxs = new Set(tripDefs.map((d) => d.fromIdx));
     const dijkstraByAnchor = /* @__PURE__ */ new Map();
     const targets = new Set(anchors.map((a) => anchorNodeId(a.id)));
     for (let i = 0; i < n; i++) {
       matrix[i][i] = 0;
       const sourceNode = anchorNodeId(anchors[i].id);
       const result = dijkstra(graph, sourceNode, modeWeight.transit, targets);
-      dijkstraByAnchor.set(i, result);
+      if (neededFromIdxs.has(i)) dijkstraByAnchor.set(i, result);
       for (let j = 0; j < n; j++) {
         if (i === j) continue;
         const d = result.dist.get(anchorNodeId(anchors[j].id));

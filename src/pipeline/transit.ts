@@ -1,5 +1,5 @@
 import type { Anchor, CityArea, GraphEdge, GraphNode, RoadGraph } from "./types.js";
-import { bboxAround, haversineMeters } from "./geo.js";
+import { bboxAround, haversineMeters, makeProjection } from "./geo.js";
 import type { OverpassQueryFn } from "./overpass-fetch.js";
 
 /**
@@ -169,14 +169,38 @@ export async function buildTransitGraph(
     }
   }
 
-  // Stop <-> nearby stop transfers.
+  // Stop <-> nearby stop transfers. A naive all-pairs scan here is O(stops²)
+  // — fine for a small town's handful of stops, but a dense city's transit
+  // network can have thousands of stops, where that becomes tens of millions
+  // of iterations and risks taking so long (or allocating so much) that a
+  // memory- and CPU-constrained mobile browser tab gives up. A uniform grid
+  // keyed at the transfer radius bounds the search to each stop's own cell
+  // plus its 8 neighbors — any pair within the radius is guaranteed to fall
+  // in one of those, so this produces the identical set of edges, just
+  // without checking every non-nearby pair to rule it out.
+  const projection = makeProjection({ lat: city.lat, lon: city.lon });
+  const stopXY = stopList.map((s) => projection.toXY(s));
+  const cellOf = (i: number) => [Math.floor(stopXY[i].x / TRANSFER_WALK_RADIUS_M), Math.floor(stopXY[i].y / TRANSFER_WALK_RADIUS_M)];
+  const grid = new Map<string, number[]>();
   for (let i = 0; i < stopList.length; i++) {
-    for (let j = i + 1; j < stopList.length; j++) {
-      const d = haversineMeters(stopList[i], stopList[j]);
-      if (d > TRANSFER_WALK_RADIUS_M) continue;
-      const walkS = walkSeconds(d);
-      addEdge(stopList[i].id, stopList[j].id, walkS + TYPICAL_HEADWAY_S[stopList[j].bestMode] / 2, d, "walk");
-      addEdge(stopList[j].id, stopList[i].id, walkS + TYPICAL_HEADWAY_S[stopList[i].bestMode] / 2, d, "walk");
+    const [cx, cy] = cellOf(i);
+    const key = `${cx},${cy}`;
+    if (!grid.has(key)) grid.set(key, []);
+    grid.get(key)!.push(i);
+  }
+  for (let i = 0; i < stopList.length; i++) {
+    const [cx, cy] = cellOf(i);
+    for (let dx = -1; dx <= 1; dx++) {
+      for (let dy = -1; dy <= 1; dy++) {
+        for (const j of grid.get(`${cx + dx},${cy + dy}`) ?? []) {
+          if (j <= i) continue; // each unordered pair considered once
+          const d = haversineMeters(stopList[i], stopList[j]);
+          if (d > TRANSFER_WALK_RADIUS_M) continue;
+          const walkS = walkSeconds(d);
+          addEdge(stopList[i].id, stopList[j].id, walkS + TYPICAL_HEADWAY_S[stopList[j].bestMode] / 2, d, "walk");
+          addEdge(stopList[j].id, stopList[i].id, walkS + TYPICAL_HEADWAY_S[stopList[i].bestMode] / 2, d, "walk");
+        }
+      }
     }
   }
 
