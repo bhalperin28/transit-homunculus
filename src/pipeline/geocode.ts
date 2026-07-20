@@ -1,5 +1,5 @@
 import type { CityArea } from "./types.js";
-import { slugify } from "./geo.js";
+import { slugify, bboxAround } from "./geo.js";
 
 const NOMINATIM_URL = "https://nominatim.openstreetmap.org/search";
 const USER_AGENT = "transit-homunculus/1.0 (city travel-time cartogram generator)";
@@ -22,19 +22,40 @@ function nominatimHeaders(): HeadersInit {
   return isBrowser ? { Accept: "application/json" } : { "User-Agent": USER_AGENT, Accept: "application/json" };
 }
 
+export interface SearchBias {
+  lat: number;
+  lon: number;
+  /** Soft-bias box half-width, in km. Results outside it still show — this only reorders. */
+  radiusKm?: number;
+}
+
 /**
  * Worldwide place search for autocomplete: returns raw Nominatim results
  * (cities, towns, postal codes, ...) for a free-text query. Isomorphic —
  * called directly from the browser for the search-box dropdown, and could
  * be used server-side too.
+ *
+ * `bias` nudges results toward a location (e.g. the visitor's) using
+ * Nominatim's viewbox — this is a *soft* preference (`bounded=0`), so
+ * "Portland" typed from New England ranks Portland, Maine first while
+ * "Tokyo" still finds Tokyo regardless of where the visitor is.
  */
-export async function searchCitySuggestions(query: string, limit = 6): Promise<NominatimResult[]> {
+export async function searchCitySuggestions(
+  query: string,
+  limit = 6,
+  bias?: SearchBias
+): Promise<NominatimResult[]> {
   if (query.trim().length < 2) return [];
   const url = new URL(NOMINATIM_URL);
   url.searchParams.set("q", query);
   url.searchParams.set("format", "jsonv2");
   url.searchParams.set("limit", String(limit));
   url.searchParams.set("addressdetails", "0");
+  if (bias) {
+    const box = bboxAround({ lat: bias.lat, lon: bias.lon }, (bias.radiusKm ?? 400) * 1000);
+    url.searchParams.set("viewbox", `${box.west},${box.north},${box.east},${box.south}`);
+    url.searchParams.set("bounded", "0");
+  }
 
   const res = await fetch(url, { headers: nominatimHeaders() });
   if (!res.ok) return [];

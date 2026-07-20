@@ -27,6 +27,17 @@ var TH = (() => {
   });
 
   // src/pipeline/geo.ts
+  var EARTH_RADIUS_M = 6371e3;
+  function bboxAround(center, radiusMeters) {
+    const latDelta = radiusMeters / EARTH_RADIUS_M * (180 / Math.PI);
+    const lonDelta = radiusMeters / (EARTH_RADIUS_M * Math.cos(center.lat * Math.PI / 180)) * (180 / Math.PI);
+    return {
+      south: center.lat - latDelta,
+      north: center.lat + latDelta,
+      west: center.lon - lonDelta,
+      east: center.lon + lonDelta
+    };
+  }
   var DIACRITICS_RE = new RegExp("[\\u0300-\\u036f]", "g");
   function slugify(name) {
     return name.toLowerCase().normalize("NFKD").replace(DIACRITICS_RE, "").replace(/[^a-z0-9]+/g, "-").replace(/(^-|-$)/g, "");
@@ -39,13 +50,18 @@ var TH = (() => {
   function nominatimHeaders() {
     return isBrowser ? { Accept: "application/json" } : { "User-Agent": USER_AGENT, Accept: "application/json" };
   }
-  async function searchCitySuggestions(query, limit = 6) {
+  async function searchCitySuggestions(query, limit = 6, bias) {
     if (query.trim().length < 2) return [];
     const url = new URL(NOMINATIM_URL);
     url.searchParams.set("q", query);
     url.searchParams.set("format", "jsonv2");
     url.searchParams.set("limit", String(limit));
     url.searchParams.set("addressdetails", "0");
+    if (bias) {
+      const box = bboxAround({ lat: bias.lat, lon: bias.lon }, (bias.radiusKm ?? 400) * 1e3);
+      url.searchParams.set("viewbox", `${box.west},${box.north},${box.east},${box.south}`);
+      url.searchParams.set("bounded", "0");
+    }
     const res = await fetch(url, { headers: nominatimHeaders() });
     if (!res.ok) return [];
     return await res.json();
@@ -61,9 +77,9 @@ var TH = (() => {
     return { name, slug: slugify(slugSource), lat, lon, radiusMeters };
   }
   function boundingBoxRadiusMeters(south, north, west, east, lat) {
-    const EARTH_RADIUS_M = 6371e3;
-    const latSpanM = (north - south) * Math.PI * EARTH_RADIUS_M / 180;
-    const lonSpanM = (east - west) * Math.PI * EARTH_RADIUS_M * Math.cos(lat * Math.PI / 180) / 180;
+    const EARTH_RADIUS_M2 = 6371e3;
+    const latSpanM = (north - south) * Math.PI * EARTH_RADIUS_M2 / 180;
+    const lonSpanM = (east - west) * Math.PI * EARTH_RADIUS_M2 * Math.cos(lat * Math.PI / 180) / 180;
     return Math.max(latSpanM, lonSpanM) / 2;
   }
 

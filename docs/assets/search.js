@@ -39,6 +39,29 @@ function loadGeneratedCities() {
     });
 }
 
+/**
+ * Best-effort browser geolocation, requested lazily (on first search-box
+ * focus, not page load — asking for location before the visitor has shown
+ * any intent reads as pushy and gets auto-denied more often). `userLocation`
+ * starts null and is read synchronously wherever it's used, so a search
+ * fired before it resolves (or after denial/timeout) just runs unbiased —
+ * this is only ever used to reorder results, never required.
+ */
+let userLocation = null;
+let locationRequested = false;
+function requestUserLocationOnce() {
+  if (locationRequested || !navigator.geolocation) return;
+  locationRequested = true;
+  navigator.geolocation.getCurrentPosition(
+    (pos) => {
+      userLocation = { lat: pos.coords.latitude, lon: pos.coords.longitude };
+      document.getElementById("location-note").style.display = "block";
+    },
+    () => {},
+    { timeout: 6000, maximumAge: 10 * 60 * 1000 }
+  );
+}
+
 function setupSearch() {
   const input = document.getElementById("city-search");
   const statusEl = document.getElementById("search-status");
@@ -48,6 +71,8 @@ function setupSearch() {
   let highlighted = -1;
   let debounceTimer = null;
   let requestSeq = 0;
+
+  input.addEventListener("focus", requestUserLocationOnce, { once: true });
 
   function closeDropdown() {
     dropdown.classList.remove("open");
@@ -103,7 +128,7 @@ function setupSearch() {
     debounceTimer = setTimeout(async () => {
       const seq = ++requestSeq;
       try {
-        const found = await TH.searchCitySuggestions(query, 7);
+        const found = await TH.searchCitySuggestions(query, 7, userLocation || undefined);
         if (seq !== requestSeq) return; // stale response
         results = found;
         highlighted = -1;

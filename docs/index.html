@@ -55,6 +55,11 @@
     margin-top: 6px;
     min-height: 1.2em;
   }
+  #location-note {
+    font-size: 11.5px;
+    color: var(--accent);
+    margin: -4px 0 6px;
+  }
   .suggestions {
     position: absolute;
     top: calc(100% + 4px);
@@ -150,6 +155,7 @@
       />
     </div>
     <div id="search-status"></div>
+    <p id="location-note" style="display:none">Prioritizing results near you.</p>
     <div class="suggestions" id="suggestions" role="listbox"></div>
   </div>
 

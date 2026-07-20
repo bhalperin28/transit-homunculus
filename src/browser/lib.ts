@@ -1,8 +1,8 @@
-import { searchCitySuggestions, nominatimResultToCityArea, type NominatimResult } from "../pipeline/geocode.js";
+import { searchCitySuggestions, nominatimResultToCityArea, type NominatimResult, type SearchBias } from "../pipeline/geocode.js";
 import type { CityArea, CityDataset } from "../pipeline/types.js";
 
 export { searchCitySuggestions, nominatimResultToCityArea };
-export type { NominatimResult, CityArea, CityDataset };
+export type { NominatimResult, SearchBias, CityArea, CityDataset };
 
 export interface GenerateOptions {
   anchorTarget?: number;
